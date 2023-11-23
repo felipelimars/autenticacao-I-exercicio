@@ -5,10 +5,14 @@ import { SignupInputDTO, SignupOutputDTO } from "../dtos/signup.dto"
 import { BadRequestError } from "../errors/BadRequestError"
 import { NotFoundError } from "../errors/NotFoundError"
 import { USER_ROLES, User } from "../models/User"
+import { IdGenerator } from "../services/IdGenerator"
+import { TokenManager, TokenPayload } from "../services/TokenMenager"
 
 export class UserBusiness {
   constructor(
-    private userDatabase: UserDatabase
+    private userDatabase: UserDatabase,
+    private idGenerator: IdGenerator,
+    private tokenManager: TokenManager
   ) { }
 
   public getUsers = async (
@@ -39,7 +43,10 @@ export class UserBusiness {
   public signup = async (
     input: SignupInputDTO
   ): Promise<SignupOutputDTO> => {
-    const { id, name, email, password } = input
+    // const { id, name, email, password } = input
+    const { name, email, password } = input
+
+    const id = this.idGenerator.generate()
 
     const userDBExists = await this.userDatabase.findUserById(id)
 
@@ -59,9 +66,17 @@ export class UserBusiness {
     const newUserDB = newUser.toDBModel()
     await this.userDatabase.insertUser(newUserDB)
 
+    const payload: TokenPayload = {
+      id: newUser.getId(),
+      name: newUser.getName(),
+      role: newUser.getRole()
+    }
+
+    const token = this.tokenManager.createToken(payload)
+
     const output: SignupOutputDTO = {
       message: "Cadastro realizado com sucesso",
-      token: "token"
+      token
     }
 
     return output
@@ -82,9 +97,26 @@ export class UserBusiness {
       throw new BadRequestError("'email' ou 'password' incorretos")
     }
 
+    const user = new User(
+      userDB.id,
+      userDB.name,
+      userDB.email,
+      userDB.password,
+      userDB.role,
+      userDB.created_at
+    )
+
+    const payload: TokenPayload = {
+      id: user.getId(),
+      name: user.getName(),
+      role: user.getRole()
+    }
+
+    const token = this.tokenManager.createToken(payload)
+
     const output: LoginOutputDTO = {
       message: "Login realizado com sucesso",
-      token: "token"
+      token
     }
 
     return output
